@@ -12,7 +12,9 @@ manifest:
       remote: zephyrproject
       revision: v4.4.0
       clone-depth: 1
-      path: deps/zephyr
+      # path-prefix below also prepends to this project's own path,
+      # so `path: zephyr` resolves to deps/zephyr.
+      path: zephyr
       import:
         path-prefix: deps/
         name-allowlist:
