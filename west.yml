@@ -1,0 +1,41 @@
+manifest:
+  remotes:
+    - name: zephyrproject
+      url-base: https://github.com/zephyrproject-rtos
+    - name: zephyr-book
+      url-base: https://github.com/zephyr-book
+    - name: edgebr
+      url-base: https://github.com/edgebr
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject
+      revision: v4.4.0
+      clone-depth: 1
+      path: deps/zephyr
+      import:
+        path-prefix: deps/
+        name-allowlist:
+          - hal_rpi_pico
+          - cmsis_6
+          - fatfs
+
+    # Board support shipped as a Zephyr module (provides boards/ via module.yml).
+    - name: board
+      remote: zephyr-book
+      revision: main
+      path: board
+
+    - name: oled-mono-fonts
+      remote: edgebr
+      revision: zephyr
+      path: deps/oled-mono-fonts
+
+    - name: oled-sh1106-zephyr
+      remote: edgebr
+      revision: 3-wire-spi
+      clone-depth: 1
+      path: deps/display
+
+  self:
+    path: bring-up-test-p1
