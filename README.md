@@ -5,7 +5,7 @@ It validates every hardware module on the board through an interactive shell
 exposed over the UART.
 
 This repository is the **application + west manifest**. The board itself lives in
-a separate Zephyr module, [`zephyr-book/board`](https://github.com/zephyr-book/board),
+a separate Zephyr module, [`zephyr-book/zbook`](https://github.com/zephyr-book/zbook),
 pulled in by `west.yml` — so the app does not hardcode `BOARD_ROOT`.
 
 ---
@@ -41,7 +41,7 @@ The shell root command is `test`. Run `test <module>`:
 ## Workspace setup
 
 This repo is the west manifest, so initialize the workspace from it. `west update`
-then fetches Zephyr, the modules, and the `board` module:
+then fetches Zephyr, the modules, and the `zbook` board module:
 
 ```bash
 # First time — initialize the workspace from this repo
@@ -55,8 +55,9 @@ Resulting layout (west T2 — application is the manifest repo):
 ```
 zephyr-book-workspace/
 ├── bring-up-test-p1/   # this repo (app + west.yml manifest)
-├── board/              # zephyr-book/board (board support, Zephyr module)
-└── deps/               # zephyr + modules (hal_rpi_pico, cmsis_6, fatfs, oled fonts/display)
+├── zbook/              # zephyr-book/zbook (board support + snippets, Zephyr module)
+└── deps/               # zephyr + modules (hal_rpi_pico, cmsis_6, fatfs, littlefs,
+                        #   oled fonts/display)
 ```
 
 Run all build/flash commands from inside `bring-up-test-p1/`. After changing
@@ -68,15 +69,16 @@ Run all build/flash commands from inside `bring-up-test-p1/`. After changing
 
 Wi-Fi, persistent credentials and the bootloader layout are all **opt-in** and
 selected at build time. The base build has no networking and boots standalone.
-The board (`zbook/rp2350b/m33`) is provided by the `board` module — pass it with
+The board (`zbook/rp2350b/m33`) is provided by the `zbook` module — pass it with
 `-b`; no `BOARD_ROOT` is needed.
 
-| Goal                              | Command                                                                       |
-|-----------------------------------|-------------------------------------------------------------------------------|
-| Base (standalone, no Wi-Fi)       | `west build -p always -b zbook/rp2350b/m33`                                   |
-| + Wi-Fi (ESP8266 module)          | `west build -p always -b zbook/rp2350b/m33 --shield zbook_wifi`               |
-| + persistent Wi-Fi credentials    | `west build -p always -b zbook/rp2350b/m33 --shield zbook_wifi -S wifi-credentials` |
-| MCUboot layout (app in slot-0)    | `west build -p always -b zbook/rp2350b/m33/mcuboot --sysbuild`                |
+| Goal                                  | Command                                                                       |
+|---------------------------------------|-------------------------------------------------------------------------------|
+| Base (standalone, no Wi-Fi)           | `west build -p always -b zbook/rp2350b/m33`                                   |
+| + Wi-Fi (ESP8266 module)              | `west build -p always -b zbook/rp2350b/m33 --shield zbook_wifi`               |
+| + persistent Wi-Fi credentials (NVS)  | `west build -p always -b zbook/rp2350b/m33 --shield zbook_wifi -S wifi-credentials` |
+| + persistent Wi-Fi credentials (LittleFS) | `west build -p always -b zbook/rp2350b/m33 --shield zbook_wifi -S zbook-wifi-credentials-littlefs` |
+| MCUboot layout (app in slot-0)        | `west build -p always -b zbook/rp2350b/m33/mcuboot --sysbuild`                |
 
 Notes:
 
@@ -86,11 +88,17 @@ Notes:
   silently ignored. Alternatively, give each configuration its own build
   directory with `-d build-<name>`.
 - **`--shield zbook_wifi`** adds the ESP8266 Wi-Fi module (an attachable module
-  described in the board module at `board/boards/shields/zbook_wifi/`) and pulls
+  described in the board module at `zbook/boards/shields/zbook_wifi/`) and pulls
   in the networking stack.
 - **`-S wifi-credentials`** is an upstream Zephyr snippet that enables
-  `WIFI_CREDENTIALS` persistence (settings/NVS). It uses the `storage` flash
-  partition (256 KB), defined by the board.
+  `WIFI_CREDENTIALS` persistence on the **NVS** settings backend. It uses the
+  `storage` flash partition (256 KB), defined by the board.
+- **`-S zbook-wifi-credentials-littlefs`** is the equivalent provided by the
+  `zbook` board module, but persists credentials via the settings **FILE**
+  backend on a **LittleFS** filesystem mounted at `/lfs` on the same `storage`
+  partition. Use it *instead of* `-S wifi-credentials` (the two select mutually
+  exclusive settings backends). It relies on the `littlefs` module, which is
+  already in this app's `west.yml` import allowlist.
 
 ### Board variants and flash layout
 
@@ -104,7 +112,7 @@ Kconfig), so the MCUboot layout lives in a dedicated variant `.dts`.
 |-----------------|-------------|-----------|--------------------------------|
 | `image_def`     | `0x000000`  | 256 B     | RP2350 image definition block  |
 | `code-partition`| `0x000100`  | ~1.75 MB  | Application (read-only)         |
-| `storage`       | `0x1C0000`  | 256 KB    | NVS settings (Wi-Fi credentials)|
+| `storage`       | `0x1C0000`  | 256 KB    | Settings storage — NVS, or LittleFS with `-S zbook-wifi-credentials-littlefs` |
 
 **`zbook/rp2350b/m33/mcuboot`** — MCUboot layout (upstream
 `partitions_2M_sysbuild.dtsi`), application linked into slot-0:
@@ -133,7 +141,7 @@ in this document uses `west` directly so nothing depends on `just`.
 
 ## Flash via OpenOCD
 
-The runner is preconfigured in the board module (`board/boards/zbook/board.cmake`)
+The runner is preconfigured in the board module (`zbook/boards/zbook/board.cmake`)
 to use CMSIS-DAP with the `rp2350` target at 4 MHz.
 
 ### SWD connection
@@ -191,5 +199,5 @@ bring-up-test-p1/
 │   └── display_test.c  sd_test.c
 ├── CMakeLists.txt          # no BOARD_ROOT — board comes from the west module
 ├── prj.conf                # Application Kconfig (no networking)
-└── west.yml                # Manifest: Zephyr + modules + zephyr-book/board
+└── west.yml                # Manifest: Zephyr + modules + zephyr-book/zbook
 ```
