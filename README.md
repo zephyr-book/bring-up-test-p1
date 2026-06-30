@@ -33,7 +33,9 @@ The shell root command is `test`. Run `test <module>`:
 
 - [West](https://docs.zephyrproject.org/latest/develop/west/install.html) installed
 - The `arm-zephyr-eabi` toolchain (Zephyr SDK) configured
-- OpenOCD with CMSIS-DAP support (Raspberry Pi Debug Probe, or another Pico as an SWD probe)
+- The **Raspberry Pi build of OpenOCD** (it has the `rp2350` target support that
+  stock OpenOCD lacks), plus a CMSIS-DAP probe (Raspberry Pi Debug Probe, or
+  another Pico as an SWD probe). See [Flash via OpenOCD](#flash-via-openocd).
 - Python 3.11+
 
 ---
@@ -155,9 +157,26 @@ to use CMSIS-DAP with the `rp2350` target at 4 MHz.
 
 ### Flash with west
 
+Flashing needs the **Raspberry Pi build of OpenOCD** — it carries the `rp2350`
+target support that a stock/system OpenOCD usually lacks, so a plain
+`west flash` (which picks up the system `openocd`) fails to find the target.
+Point west at the Raspberry Pi `openocd` binary and its script search directory
+instead:
+
 ```bash
-west flash
+west flash \
+  --openocd ~/.local/bin/usr/local/bin/openocd \
+  --openocd-search ~/.local/openocd
 ```
+
+- **`--openocd`** — path to the Raspberry Pi `openocd` binary.
+- **`--openocd-search`** — directory holding that OpenOCD's scripts, so the
+  `interface/cmsis-dap.cfg` and `target/rp2350.cfg` referenced by the board's
+  `board.cmake` resolve.
+
+Adjust both paths to wherever you installed the Raspberry Pi OpenOCD. The
+`justfile` wraps this exact invocation — `just flash` — with the paths set at
+the top of the file.
 
 ### Manual flash with OpenOCD (without west)
 
@@ -183,7 +202,33 @@ screen /dev/ttyUSB0 115200
 
 After connecting, press **Enter** to bring up the prompt and use `test <module>`
 to run a test. With a Wi-Fi build, the `wifi` and `net` shell commands are also
-available (e.g. `wifi connect -s <SSID> -p <PASS> -k 1`).
+available (e.g. `wifi connect -s <SSID> -p <PASS> -k 1` for a one-shot,
+non-persistent connection).
+
+---
+
+## Wi-Fi credentials
+
+Build with a credentials snippet — `-S wifi-credentials` (NVS backend) or
+`-S zbook-wifi-credentials-littlefs` (LittleFS backend) — to store Wi-Fi
+credentials in the `storage` flash partition so they **survive reboots** and are
+**auto-connected on boot** (`CONFIG_WIFI_CREDENTIALS_CONNECT_STORED`). Manage
+them from the shell with `wifi cred`:
+
+```text
+wifi cred add -s <SSID> -p <PASS> -k 1   # store a network (-k 1 = WPA2-PSK)
+wifi cred list                           # list stored networks
+wifi cred delete <SSID>                  # remove a stored network (SSID is positional)
+wifi cred auto_connect                   # connect now using stored networks
+```
+
+After `wifi cred add`, reset the board: the credential is loaded from flash and
+the device reconnects on its own — no need to re-enter it.
+
+> On the **first** store on a freshly-formatted LittleFS you'll see a one-time
+> `<err> fs: file open error (-2)`: the settings file doesn't exist yet and is
+> created by that write. It is harmless and does not reappear on later writes or
+> boots.
 
 ---
 
